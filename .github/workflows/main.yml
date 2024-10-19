@@ -1,0 +1,64 @@
+name: Run Selenium Tests On GitHub Action
+on:
+  schedule:
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+    inputs:
+      full_run:
+        description: 'Run all tests'
+        required: false
+        default: 'full'  # Default value is 'full' it can be partial or full
+        type: string
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checking out repo
+        uses: actions/checkout@v3
+
+      - name: Setting up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.7'
+      - name: Installing package list
+        run: apt list --installed
+
+      - name: Removing previous chrome instances on runner
+        run: sudo apt purge google-chrome-stable
+
+      - name: Installing all necessary packages
+        run: |
+          sudo apt-get install python3-pip
+          if [ -f requirements.txt ]; then pip3 install -r requirements.txt; fi
+          pip3 install chromedriver-autoinstaller selenium pyvirtualdisplay
+
+      - name: Install Chrome
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            wget \
+            unzip \
+            xvfb \
+            libxi6 \
+            libgconf-2-4
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get -f install -y
+
+      - name: Installing python packages
+        run: |
+          sudo python3 -m pip install -U selenium
+          pip3 install selenium-page-factory
+          pip3 install -U pytest
+          pip3 install webdriver-manager
+          pip3 install chromedriver-autoinstaller
+
+      - name: Running the Python script
+        run: |
+          FULL_RUN=${{ github.event.inputs.full_run }}
+          if [ "$FULL_RUN" == "full" ]; then
+              pytest -v -s
+          else
+              pytest -v -k test_only_in_retrieved_symbols
+              pytest -v -k test_only_in_test_data
+          fi
